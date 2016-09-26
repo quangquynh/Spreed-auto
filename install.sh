@@ -1,15 +1,11 @@
 #!/bin/bash
-# Add the secrets to SPREEDCONF
-ENCRYPTIONSECRET=$(openssl rand -hex 32)
-SESSIONSECRET=$(openssl rand -hex 32)
-SERVERTOKEN=$(openssl rand -hex 32)
 SHAREDSECRET=$(openssl rand -hex 32)
 NCDIR="/var/www/nextcloud"
 SPREEDDOMAIN=$(whiptail --title "Spreed domain" --inputbox "Leave empty for autodiscovery" 10 60 3>&1 1>&2 2>&3)
 SPREEDPORT=""
 VHOST443="/etc/apache2/sites-available/nextcloud_ssl_domain_self_signed.conf"
 LISTENADDRESS="$ADDRESS"
-SPREEDVER_REPO="https://github.com/strukturag/nextcloud-spreedme/archive/master.zip"
+SPREEDVER_REPO="https://github.com/strukturag/nextcloud-spreedme/master"
 SPREED_FILE="nextcloud-spreedme-master.zip"
 SPREEDCONF="/etc/spreed/webrtc.conf"
 
@@ -19,7 +15,7 @@ apt-get update
 apt-get install spreed-webrtc -y
 
 # Download and install Spreed
-if [ -d $NCDIR/apps/contacts ]; then
+if [ -d $NCDIR/apps/spreedme ]; then
 echo "Spreed-webrtc exists..."
 else
 wget -q $SPREEDVER_REPO -P $NCDIR/apps
@@ -28,7 +24,7 @@ mv $NCDIR/apps/nextcloud-spreedme-master $NCDIR/apps/spreedme
 rm $NCDIR/apps/$SPREEDVER_FILE
 fi
 
-# Enable Contacts
+# Enable Spreedme
 if [ -d $NCDIR/apps/spreedme ]; then
 sudo -u www-data php $NCDIR/occ app:enable spreedme
 fi
@@ -76,19 +72,19 @@ SPREEDCONF
 
 # Change spreed.me config.php
 cp "$NCDIR"/apps/spreedme/config/config.php.in "$NCDIR"/apps/spreedme/config/config.php
-sed -i "s|const SPREED_WEBRTC_ORIGIN = '';|const SPREED_WEBRTC_ORIGIN = '$SPREEDDOMAIN';|g" "$NCDIR"/apps/spreedme/config/config.php
+sed -i "s|const SPREED_WEBRTC_ORIGIN = '';|const SPREED_WEBRTC_ORIGIN = $SPREEDDOMAIN;|g" "$NCDIR"/apps/spreedme/config/config.php
 sed -i "s|const SPREED_WEBRTC_SHAREDSECRET = 'bb04fb058e2d7fd19c5bdaa129e7883195f73a9c49414a7eXXXXXXXXXXXXXXXX';|const SPREED_WEBRTC_SHAREDSECRET = '$SHAREDSECRET';|g" "$NCDIR"/apps/spreedme/config/config.php
 
 # Change OwnCloudConfig.js
 cp "$NCDIR"/apps/spreedme/extra/static/config/OwnCloudConfig.js.in "$NCDIR"/apps/spreedme/extra/static/config/OwnCloudConfig.js
-sed -i "s|OWNCLOUD_ORIGIN: '',|OWNCLOUD_ORIGIN: 'SPREEDDOMAIN',|g" "$NCDIR"/apps/spreedme/extra/static/config/OwnCloudConfig.js
+sed -i "s|OWNCLOUD_ORIGIN: '',|OWNCLOUD_ORIGIN: $SPREEDDOMAIN,|g" "$NCDIR"/apps/spreedme/extra/static/config/OwnCloudConfig.js
 
 # Restart spreed server
 service spreedwebrtc restart
 
 # Vhost configuration 443
 sed -i 's|</VirtualHost>||g' "$VHOST443"
-CAT <<-VHOST > "$VHOST443"
+CAT <<-VHOST >> "$VHOST443"
 <Location /webrtc>
       ProxyPass http://"$LISTENADDRESS":"$LISTENPORT"/webrtc
       ProxyPassReverse /webrtc
@@ -111,7 +107,6 @@ VHOST
 service apache2 reload
 
 # Almost done
-echo "Please enable the app in Nextcloud/ownCloud..."
 echo
 echo "If there are any errors make sure to append /?debug to the url when visiting the spreedme app in the cloud"
 echo "This will help us troubleshoot the issues, you could also visit: mydomain.com/index.php/apps/spreedme/admin/debug"
